@@ -1,7 +1,12 @@
 import random
 from abc import abstractmethod
 import treys as Treys
-import parallel_holdem_calc
+from itertools import combinations
+import numpy as np
+import json
+
+import utils
+import compute
 
 NUM_ROUNDS_PER_BB = 100
 NUM_PLAYERS = 3
@@ -22,20 +27,51 @@ class Player:
         raise NotImplementedError
 
 
-class GTO(Player):
+class GTOMean(Player):
+    pass
+
+
+class GTOMedian(Player):
+    def __init__(self):
+        hole_data = json.load(open('hole_card_winning_percentages_median.json'))
+        flop_data = json.load(open('flop_winning_percentages_median.json'))
+        turn_data = json.load(open('turn_winning_percentages_median.json'))
+        river_data = json.load(open('river_winning_percentages_median.json'))
+        self.hole_card_percentages = utils.get_hand_dict_from_combos(hole_data)
+        self.flop_percentages = utils.get_hand_dict_from_combos(flop_data)
+        self.turn_percentages = utils.get_hand_dict_from_combos(turn_data)
+        self.river_percentages = utils.get_hand_dict_from_combos(river_data)
 
     def get_pot_odds(self, table):
         return table.current_bet / (table.current_bet + table.pot)
 
     def get_equity(self, table):
-        cards = self.hand + table.board
+        if len(table.board) == 0:    # Hole Cards.
+            return self.hole_card_percentages[self.hand]
+        elif len(table.board) == 3:  # Flop
+            return self.flop_percentages[(self.hand, table.board)]
+        elif len(table.board) == 4:  # Turn
+            return self.turn_percentages[(self.hand, table.board)]
+        else:                        # River
+            return self.river_percentages[(self.hand, table.board)]
 
-        if len(cards) == 2:
-            # Just Hole Cards.
+            """
+            deck = utils.Poker.deck
+            for card in cards:
+                deck.remove(card)
 
+            board_combos = [x for x in combinations(deck, 7 - len(cards))]
+            cum_score = []
+            for board in board_combos:
+                cum_score += [compute.get_score(cards + board)]
+
+            score = round(np.median(cum_score), 4)
+            ave_score = None"""
 
     def get_bet(self, table):
         num_players = len(table.players)
+        equity = self.get_equity(table)
+        winning_percentage = equity[num_players]
 
 
 class NaivePlayer(Player):
