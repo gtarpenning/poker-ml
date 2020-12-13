@@ -26,10 +26,12 @@ class Player:
 
 
 class GTOPlayer(Player):
-    def __init__(self):
+    def __init__(self, num, stack):
+        super().__init__(num, stack)
         self.hole_card_percentages = json.load(open('./dart_lookups/hole_card_percentages.json'))
 
-    def get_pot_odds(self, table):
+    @staticmethod
+    def get_pot_odds(table):
         return table.current_bet / (table.current_bet + table.pot)
 
     def get_equity(self, table):
@@ -115,7 +117,7 @@ class ManualPlayerAssist(Player):
     def get_bet(self, table):  # NOT IMPLEMENTED PROPERLY #
 
         while True:
-            print(f"Evalator win percentage for player {self.num}: %{0}. (-1 to fold)")
+            print(f"Evaluator win percentage for player {self.num}: %{0}. (-1 to fold)")
             bet = int(input(f"Enter bet for player {self.num}"))
             legal_bet = table.check_legal_bet(bet, self.stack)
             if bet == -1:
@@ -127,13 +129,13 @@ class ManualPlayerAssist(Player):
                 print(f"Player {self.num} stack: {self.stack}")
 
 
-class Table():
+class Table:
 
     def __init__(self, num_players, starting_big_blind, hands_per_bb):
         self.players = []
         self.order = [i for i in range(num_players)]
         self.board = []
-        self.active = [True for x in range(num_players)]
+        self.active = [True for _ in range(num_players)]
         self.deck = utils.make_deck()
         self.evaluator = treys.Evaluator()
         self.big_blind = starting_big_blind
@@ -188,7 +190,7 @@ class Table():
         """Call before each hand, including first hand."""
         self.round_counter += 1
         self.order = self.order[1:] + [self.order[0]]
-        self.active = [True for x in range(len(self.players))]
+        self.active = [True for _ in range(len(self.players))]
         self.deck = utils.make_deck()
         self.board = []
         self.pot = 0
@@ -208,7 +210,7 @@ class Table():
                     continue
 
                 player = self.players[i]
-                if (checks >= self.active.count(True)):  # or (self.active.count(True) == 1
+                if checks >= self.active.count(True):  # or (self.active.count(True) == 1
                     # Done with betting round, action gets back to aggressor
                     for j in self.order:
                         if self.active[j]:
