@@ -27,13 +27,6 @@ def make_hole_card_combo_dict(possible_hole_cards):
     return hole_combos
 
 
-c_lookup = {
-    '2': 2, '3': 3, '4': 4, '5': 5, '6': 6,
-    '7': 7, '8': 8, '9': 9, 'T': 10,
-    'J': 11, 'Q': 12, 'K': 13, 'A': 14
-}
-
-
 def get_single_card_scores(cards, num):
     return sum([x / (15**(i + 1)) for i, x in enumerate(cards[:num])])
 
@@ -49,31 +42,31 @@ def get_score(cards):
 
     big = []
     small = []
-    cards_s = sorted([c_lookup[x[0]] for x in cards], reverse=True)
+    cards_s = sorted([utils.c_lookup[x[0]] for x in cards], reverse=True)
     for card, num in counts.items():
         if num == 4:  # 4 of a kind!
             high = cards_s[0]
-            if high == c_lookup[card]:
+            if high == utils.c_lookup[card]:
                 high = cards_s[4]
-            return 105 + c_lookup[card] + high / 15
+            return 105 + utils.c_lookup[card] + high / 15
         elif num == 3:
             big += [card]
         elif num == 2:
             small += [card]
 
     if len(big) == 2:  # full house with two triples
-        if c_lookup[big[0]] > c_lookup[big[1]]:
-            return 90 + c_lookup[big[0]] + c_lookup[big[1]] / 15
+        if utils.c_lookup[big[0]] > utils.c_lookup[big[1]]:
+            return 90 + utils.c_lookup[big[0]] + utils.c_lookup[big[1]] / 15
         else:
-            return 90 + c_lookup[big[1]] + c_lookup[big[0]] / 15
+            return 90 + utils.c_lookup[big[1]] + utils.c_lookup[big[0]] / 15
 
     if len(big) == 1 and len(small) >= 1:  # Full house 3 + 2
-        return 90 + c_lookup[big[0]] + max([c_lookup[x[0]] for x in small]) / 15
+        return 90 + utils.c_lookup[big[0]] + max([utils.c_lookup[x[0]] for x in small]) / 15
 
     # Flush:
     for suit, count in suit_counts.items():
         if count >= 5:  # FLUSH
-            flush_cards = sorted([c_lookup[x[0]] for x in cards if x[1] == suit], reverse=True)[:5]
+            flush_cards = sorted([utils.c_lookup[x[0]] for x in cards if x[1] == suit], reverse=True)[:5]
             straight_counter = 0
             last_num = cards_s[0]
             for num in cards_s[1:]:
@@ -103,18 +96,18 @@ def get_score(cards):
 
     # Three of a kind
     if len(big) == 1 and len(small) == 0:
-        high = sorted([c_lookup[x[0]] for x in cards if x not in big], reverse=True)
-        return 45 + c_lookup[big[0]] + (high[0] / 15) + (high[1] / (15**2))
+        high = sorted([utils.c_lookup[x[0]] for x in cards if x not in big], reverse=True)
+        return 45 + utils.c_lookup[big[0]] + (high[0] / 15) + (high[1] / (15**2))
 
     if len(small) >= 2:  # 2 pair
-        top = max([c_lookup[x[0]] for x in small])
-        bottom = max([c_lookup[x[0]] for x in small if c_lookup[x[0]] != top])
-        high = max([c_lookup[x[0]] for x in cards if x not in small])
+        top = max([utils.c_lookup[x[0]] for x in small])
+        bottom = max([utils.c_lookup[x[0]] for x in small if utils.c_lookup[x[0]] != top])
+        high = max([utils.c_lookup[x[0]] for x in cards if x not in small])
         return 30 + top + (bottom / 15) + (high / (15**2))
 
     if len(small) == 1:
-        high = sorted([c_lookup[x[0]] for x in cards if x not in small], reverse=True)
-        return 15 + c_lookup[small[0]] + get_single_card_scores(high, 3)
+        high = sorted([utils.c_lookup[x[0]] for x in cards if x not in small], reverse=True)
+        return 15 + utils.c_lookup[small[0]] + get_single_card_scores(high, 3)
 
     return get_single_card_scores(cards_s, 5)
 

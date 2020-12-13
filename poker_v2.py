@@ -1,12 +1,10 @@
 import random
 from abc import abstractmethod
-import treys as Treys
-from itertools import combinations
-import numpy as np
+import treys
 import json
-
+# local imports
 import utils
-import compute
+# import compute
 
 NUM_ROUNDS_PER_BB = 100
 NUM_PLAYERS = 3
@@ -27,20 +25,9 @@ class Player:
         raise NotImplementedError
 
 
-class GTOMean(Player):
-    pass
-
-
-class GTOMedian(Player):
+class GTOPlayer(Player):
     def __init__(self):
-        hole_data = json.load(open('hole_card_winning_percentages_median.json'))
-        flop_data = json.load(open('flop_winning_percentages_median.json'))
-        turn_data = json.load(open('turn_winning_percentages_median.json'))
-        river_data = json.load(open('river_winning_percentages_median.json'))
-        self.hole_card_percentages = utils.get_hand_dict_from_combos(hole_data)
-        self.flop_percentages = utils.get_hand_dict_from_combos(flop_data)
-        self.turn_percentages = utils.get_hand_dict_from_combos(turn_data)
-        self.river_percentages = utils.get_hand_dict_from_combos(river_data)
+        self.hole_card_percentages = json.load(open('./dart_lookups/hole_card_percentages.json'))
 
     def get_pot_odds(self, table):
         return table.current_bet / (table.current_bet + table.pot)
@@ -48,40 +35,28 @@ class GTOMedian(Player):
     def get_equity(self, table):
         if len(table.board) == 0:    # Hole Cards.
             return self.hole_card_percentages[self.hand]
-        elif len(table.board) == 3:  # Flop
-            return self.flop_percentages[(self.hand, table.board)]
-        elif len(table.board) == 4:  # Turn
-            return self.turn_percentages[(self.hand, table.board)]
-        else:                        # River
-            return self.river_percentages[(self.hand, table.board)]
-
-            """
-            deck = utils.Poker.deck
-            for card in cards:
-                deck.remove(card)
-
-            board_combos = [x for x in combinations(deck, 7 - len(cards))]
-            cum_score = []
-            for board in board_combos:
-                cum_score += [compute.get_score(cards + board)]
-
-            score = round(np.median(cum_score), 4)
-            ave_score = None"""
+        else:
+            # do analysis
+            raise NotImplementedError
 
     def get_bet(self, table):
         num_players = len(table.players)
         equity = self.get_equity(table)
         winning_percentage = equity[num_players]
 
+        return winning_percentage * table.pot
+
 
 class NaivePlayer(Player):
 
     def get_bet(self, table):
-        raw = 0
+        to_eval = []
         if len(table.board) == 0:  # major hack for evaluate function
-            raw = table.evaluator.evaluate(self.hand, [Treys.Card.new('2h'), Treys.Card.new('3s'), Treys.Card.new('5c')])
+            to_eval = [treys.Card.new(card) for card in ['2h', '5s', '7c']]
         else:
-            raw = table.evaluator.evaluate(self.hand, table.board)
+            to_eval += [treys.Card.new(card) for card in table.board]
+
+        raw = table.evaluator.evaluate([treys.Card.new(x) for x in self.hand], to_eval)
 
         win_percent = 1 - table.evaluator.get_five_card_rank_percentage(raw)
         bet_size = 1.0 * table.current_bet / (table.pot + table.current_bet)
@@ -90,7 +65,7 @@ class NaivePlayer(Player):
             # With randomness, decide whether to call or raise
             raise_bool = random.uniform(0, win_percent) < (win_percent - bet_size)
             if raise_bool:
-                return random.randint(table.current_bet, int((2 * win_percent * table.pot) + (table.pot / 2)))
+                return random.randint(table.current_bet, int((2 * win_percent * table.pot) + (table.pot / 2))+5)
             else:
                 return table.current_bet
         else:  # Balance our strategy, also call sometimes with worse hands
@@ -124,7 +99,7 @@ class ManualPlayer(Player):
 
     def get_bet(self, table):
         while True:
-            bet = int(input(f'Enter bet for player {self.num}. (-1 to fold)'))
+            bet = int(input(f"Enter bet for player {self.num}. (-1 to fold)"))
             legal_bet = table.check_legal_bet(bet, self.stack)
             if bet == -1:
                 return None
@@ -138,9 +113,10 @@ class ManualPlayer(Player):
 class ManualPlayerAssist(Player):
 
     def get_bet(self, table):  # NOT IMPLEMENTED PROPERLY #
+
         while True:
             print(f"Evalator win percentage for player {self.num}: %{0}. (-1 to fold)")
-            bet = int(input(f'Enter bet for player {self.num}'))
+            bet = int(input(f"Enter bet for player {self.num}"))
             legal_bet = table.check_legal_bet(bet, self.stack)
             if bet == -1:
                 return None
@@ -158,8 +134,8 @@ class Table():
         self.order = [i for i in range(num_players)]
         self.board = []
         self.active = [True for x in range(num_players)]
-        self.deck = Treys.Deck()
-        self.evaluator = Treys.Evaluator()
+        self.deck = utils.make_deck()
+        self.evaluator = treys.Evaluator()
         self.big_blind = starting_big_blind
         self.pot = 0
         self.current_bet = 0
@@ -213,10 +189,12 @@ class Table():
         self.round_counter += 1
         self.order = self.order[1:] + [self.order[0]]
         self.active = [True for x in range(len(self.players))]
-        self.deck = Treys.Deck()
+        self.deck = utils.make_deck()
         self.board = []
         self.pot = 0
         self.current_bet = 0
+
+        random.shuffle(self.deck)
 
         # Handle big blind if needed
         if self.round_counter % (self.hands_per_bb * len(self.players)) == 0:
@@ -275,11 +253,10 @@ class Table():
             raise
 
     def do_round(self, num_cards):
-        if num_cards > 1:
-            self.board += self.deck.draw(num_cards)
-        else:
-            self.board += [self.deck.draw(num_cards)]
-        print("BOARD: ", Treys.Card.print_pretty_cards(self.board))
+        self.board += self.deck[:num_cards]
+        self.deck = self.deck[num_cards:]
+
+        print("BOARD: ", self.board)
         self.do_betting_round()
 
         if self.active.count(True) == 1:
@@ -292,7 +269,9 @@ class Table():
     def do_hand(self):
         print(f"\n*Hand number: {self.round_counter}*")
         for i in self.order:
-            self.players[i].hand = self.deck.draw(2)
+            self.players[i].hand = self.deck[:2]
+            self.deck = self.deck[2:]
+
         # ANTE
         winner = self.do_preflop()
         if winner:
@@ -312,9 +291,10 @@ class Table():
         # SHOWDOWN
         best = 8000
         winner = None
+        treys_board = [treys.Card.new(card) for card in self.board]
         for i in self.order:
             if self.active[i]:
-                score = self.evaluator.evaluate(self.players[i].hand, self.board)
+                score = self.evaluator.evaluate([treys.Card.new(card) for card in self.players[i].hand], treys_board)
                 if score < best:
                     best = score
                     winner = self.players[i]
@@ -322,22 +302,25 @@ class Table():
         return winner
 
 
-def run_game():
+def main():
     """Run all components of the game."""
+    # Make table
     table = Table(NUM_PLAYERS, STARTING_BB, NUM_ROUNDS_PER_BB)
 
+    # Make players
     table.players += [NaivePlayer(0, STARTING_STACK)]
     for i in range(1, NUM_PLAYERS):
         table.players += [RandomPlayer(i, STARTING_STACK)]
 
-    for round in range(NUM_ROUNDS):
+    # Handle scoring / winners
+    for _ in range(NUM_ROUNDS):
         table.reset_round()
         winner = table.do_hand()
 
         print(f"Winner: Player {winner.num}, winning pot: ${table.pot}")
         winner.stack += table.pot
         for player in table.players:
-            print("Player:", player.num, Treys.Card.print_pretty_cards(player.hand))
+            print(f"Player: {player.num} hand: {player.hand}")
 
     print(f"\n\nAfter {NUM_ROUNDS} rounds, the player stacks are:")
     for player in table.players:
@@ -345,4 +328,4 @@ def run_game():
 
 
 if __name__ == "__main__":
-    run_game()
+    main()
