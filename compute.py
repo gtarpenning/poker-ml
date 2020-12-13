@@ -9,15 +9,6 @@ import numpy as np
 import utils
 
 
-def make_deck():
-    all_cards = []
-    for face in ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']:
-        for suit in ['s', 'h', 'd', 'c']:
-            all_cards += [face + suit]
-
-    return all_cards
-
-
 def make_hole_card_combo_dict(possible_hole_cards):
     hole_combos = {}
     for (card1, card2) in possible_hole_cards:
@@ -130,23 +121,37 @@ def get_score(cards):
 
 def do_tests():
     tests = [
-        ('Ah', 'Ks', 'Qc', 'Jh', 'Th', '2c', '2s'),  # Straight
-        ('Ah', 'Kh', 'Qc', 'Jh', 'Th', '2h', '2s'),  # Flush
-        ('Ah', 'As', 'Kc', 'Jh', 'Th', 'Ks', '2s'),  # 2 Pair
-        ('Ah', 'Ks', '9c', 'Jh', 'Th', '2c', '4d'),  # High card
-        ('Ah', 'As', 'Ac', 'Jh', 'Th', '2c', '2s'),  # Full House
-        ('Ah', 'Ks', 'Qh', 'Jh', '2h', '2c', '2s'),  # 3 of a kind
-        ('Kh', 'Ks', 'Kc', 'Jh', '2h', '2c', '2s'),  # 3, 3 full house
-        ('Ah', 'As', 'Ac', 'Ad', 'Th', '3c', '2s'),  # 4 of a kind
-        ('Ah', 'As', 'Qc', 'Jh', 'Th', 'Qs', '2s'),
-        ('Ah', '3s', '4s', '5c', 'Th', 'Qs', '2s')
+        # ('Ah', 'Ks', 'Qc', 'Jh', 'Th', '2c', '2s'),  # Straight
+        # ('Ah', 'Kh', 'Qc', 'Jh', 'Th', '2h', '2s'),  # Flush
+        # ('Ah', 'As', 'Kc', 'Jh', 'Th', 'Ks', '2s'),  # 2 Pair
+        # ('Ah', 'Ks', '9c', 'Jh', 'Th', '2c', '4d'),  # High card
+        # ('Ah', 'As', 'Ac', 'Jh', 'Th', '2c', '2s'),  # Full House
+        # ('Ah', 'Ks', 'Qh', 'Jh', '2h', '2c', '2s'),  # 3 of a kind
+        # ('Kh', 'Ks', 'Kc', 'Jh', '2h', '2c', '2s'),  # 3, 3 full house
+        ('2h', '2s', '2c', '2d', 'Qh', 'Tc', '3s'),  # 4 of a kind
+        ('2h', '2s', '2c', '2d', 'Ah', 'As', '3s'),  # 4-kind tie
+        ('2h', '2s', '2c', '2d', 'Kh', 'Ks', '3s')
     ]
     for test in tests:
         print(get_score(test))
 
 
+def get_card_lookup(possible_hole_cards, hole_combos):
+    lookup = defaultdict(list)
+    for (card1, card2) in possible_hole_cards:
+        name = f"{card1[0]}{card2[0]}"
+        if hole_combos.get(f"{card2[0]}{card1[0]}"):
+            name = f"{card2[0]}{card1[0]}"
+
+        if card1[-1] != card2[-1] and card1[0] != card2[0]:  # off suited
+            name += 'o'
+
+        lookup[name] += [(card1, card2)]
+    return lookup
+
+
 def setup():
-    deck = make_deck()
+    deck = utils.make_deck()
     possible_hole_cards = [x for x in combinations(deck, 2)]
     print("Number of poker hole card possibilities (52 C 2):", len(possible_hole_cards))
     hole_combos = make_hole_card_combo_dict(possible_hole_cards)
@@ -155,15 +160,26 @@ def setup():
     # print("Number of unique 5 card boards:", len(all_boards))  # 311,875,200
     unique_boards = [x for x in combinations(deck, 5)]
     print("Number of unique 5 card boards:", len(unique_boards))
+    card_lookup = get_card_lookup(possible_hole_cards, hole_combos)
 
-    return deck, possible_hole_cards, hole_combos  # , all_boards
+    return deck, possible_hole_cards, hole_combos, card_lookup  # , all_boards
+
+
+def is_flush_possible(cards):
+    suit_counts = defaultdict(int)
+    for card in cards:
+        suit_counts[card[1]] += 1
+
+    for suit, count in suit_counts.items():
+        if count >= 3:
+            return True
 
 
 def get_scores_for_holecards():
     deck, possible_hole_cards, hole_combos = setup()  # , all_boards
 
-    if 'hole_card_data.json' in os.listdir():
-        with open("hole_card_data.json", "r") as jsonFile:
+    if 'hole_card_medians.json' in os.listdir():
+        with open("hole_card_medians.json", "r") as jsonFile:
             data = json.load(jsonFile)
     else:
         data = {}
@@ -215,7 +231,7 @@ def calculate_hole_card_win_percentage(ave_hand_score, hole_combos):
 
 
 def get_unique_score_lookup():
-    deck = make_deck()
+    deck = utils.make_deck()
     board_combos = [x for x in combinations(deck, 5)]
 
     scores = defaultdict(int)

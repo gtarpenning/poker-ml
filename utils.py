@@ -4,10 +4,14 @@ CARDS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']
 DECK = [c + s for c in CARDS for s in SUITS]
 
 
+def make_deck():
+    return DECK
+
+
 def get_hand_dict_from_combos(combo_data):
     return_dict = {}
 
-    for (cards, val) in combo_data:
+    for (cards, val) in combo_data.items():
         if len(cards) == 3 or cards[0] == cards[1]:
             for suit1 in SUITS:
                 for suit2 in SUITS:
