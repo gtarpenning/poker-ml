@@ -13,8 +13,9 @@ c_lookup = {
 
 
 def make_deck():
-    random.shuffle(DECK)
-    return DECK
+    deck = DECK
+    random.shuffle(deck)
+    return deck
 
 
 def get_combo_from_hand(hand):
