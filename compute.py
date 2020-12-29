@@ -1,5 +1,5 @@
-from itertools import combinations, permutations
-from collections import defaultdict
+from itertools import combinations as comb
+from collections import defaultdict, Counter
 from tqdm import tqdm
 from datetime import datetime
 import json
@@ -145,13 +145,13 @@ def get_card_lookup(possible_hole_cards, hole_combos):
 
 def setup():
     deck = utils.make_deck()
-    possible_hole_cards = [x for x in combinations(deck, 2)]
+    possible_hole_cards = [x for x in comb(deck, 2)]
     print("Number of poker hole card possibilities (52 C 2):", len(possible_hole_cards))
     hole_combos = make_hole_card_combo_dict(possible_hole_cards)
     print("Number of unique hole card combos:", len(hole_combos))
     # all_boards = [x for x in permutations(deck, 5)]
     # print("Number of unique 5 card boards:", len(all_boards))  # 311,875,200
-    unique_boards = [x for x in combinations(deck, 5)]
+    unique_boards = [x for x in comb(deck, 5)]
     print("Number of unique 5 card boards:", len(unique_boards))
     card_lookup = get_card_lookup(possible_hole_cards, hole_combos)
 
@@ -223,48 +223,36 @@ def calculate_hole_card_win_percentage(ave_hand_score, hole_combos):
     return out_data
 
 
-def get_unique_score_lookup():
+def get_known_board_equity(hand, b):
+    start = datetime.now()
     deck = utils.make_deck()
-    board_combos = [x for x in combinations(deck, 5)]
+    deck = [x for x in deck if x not in hand + b]
 
-    scores = defaultdict(int)
-    for board in board_combos:
-        score = get_score(board)
-        scores[score] += 1
+    hero_scores = [get_score(x + b + hand) for x in comb(deck, 2)]
+    median = np.median(hero_scores)
 
-    print("num unique scores:", len(set(scores.keys())))
-    lookup = {}
-    """
-    {
-        1-2878: frequency of score
-    }
+    all_scores = [get_score(h + b + x) for h in comb(deck, 2) for x in comb(deck, 2) if h[0] not in x and h[1] not in x]
+    wins = 0
+    for score, count in Counter(all_scores).items():
+        if median > score:
+            wins += count
+        elif median == score:
+            wins += count / 2
 
-    """
-    for i, val in enumerate(sorted(list(scores.keys()))):
-        lookup[i] = scores[val]
-
-    return lookup
+    print(f"Took: {(datetime.now() - start).seconds} to determine GTO equity")
+    return wins / len(all_scores)
 
 
 def main():
-    # do_tests()
-    # data = get_scores_for_holecards()
-    # print("Hand strength order.")
-    # order = get_hand_strength_order(data)
-    # for hand in order:
-    # print(hand[0], hand[1])
-    # _, _, hole_combos = setup()
-    # hand_wins = calculate_hole_card_win_percentage(order, hole_combos)
-    # with open('hole_card_winning_percentages_median.json', 'w') as f:
-    #     json.dump(hand_wins, f)
-    d = get_unique_score_lookup()
-    percents = defaultdict(int)
-    for score1 in d:
-        for score2 in d:
-            if score1 > score2:
-                percents[score1] += d[score2] / 2598960
+    times = []
+    for i in range(1000):
+        deck = utils.make_deck()
+        hand = deck[:7]
+        start = datetime.now()
+        s = get_score(hand)
+        times += [(datetime.now() - start).microseconds]
 
-    print(percents)
+    print("Average get_sum v2", sum(times) / len(times))
 
 
 if __name__ == '__main__':

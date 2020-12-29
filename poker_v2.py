@@ -8,7 +8,7 @@ import utils
 
 NUM_ROUNDS_PER_BB = 100
 NUM_PLAYERS = 3
-STARTING_STACK = 10000
+STARTING_STACK = 100000
 NUM_ROUNDS = 1000
 STARTING_BB = 10
 
@@ -26,27 +26,62 @@ class Player:
 
 
 class GTOPlayer(Player):
-    def __init__(self, num, stack):
+    def __init__(self, num, stack, var=0.15):
         super().__init__(num, stack)
         self.hole_card_percentages = json.load(open('./dart_lookups/hole_card_percentages.json'))
+        self.defensive_variation = var
 
-    @staticmethod
-    def get_pot_odds(table):
-        return table.current_bet / (table.current_bet + table.pot)
+    def get_pot_odds(self, current_bet, pot):
+        return current_bet / (current_bet + pot)
 
-    def get_equity(self, table):
+    def get_equity(self, table, num_players):
         if len(table.board) == 0:    # Hole Cards.
-            return self.hole_card_percentages[self.hand]
+            combo_name = utils.get_combo_from_hand(self.hand)
+            equity = self.hole_card_percentages[str(num_players)][combo_name]
+            print(f"got GTO equity for hole cards {self.hand} as: [{equity}]")
+            return equity
         else:
-            # do analysis
-            raise NotImplementedError
+            # use Treys
+            b = [treys.Card.new(x) for x in table.board]
+            h = [treys.Card.new(x) for x in self.hand]
+            raw = table.evaluator.evaluate(h, b)
+            raw_win_percent = 1 - table.evaluator.get_five_card_rank_percentage(raw)
+
+            print(raw, raw_win_percent, raw_win_percent - (((num_players - 2) * 8) / 100))
+
+            return raw_win_percent - (0.14 / (num_players - 2))
 
     def get_bet(self, table):
         num_players = len(table.players)
-        equity = self.get_equity(table)
-        winning_percentage = equity[num_players]
+        pot, min_call = table.get_adjusted_pot(), table.current_bet - self.chips_in_front
 
-        return winning_percentage * table.pot
+        equity = self.get_equity(table, num_players)
+        expected_value = equity * pot
+        pot_odds = self.get_pot_odds(min_call, pot)
+        min_bet = max(table.current_bet * 2, table.big_blind)
+
+        print("pot:", pot, "equity:", equity, "pot odds:", pot_odds, "ev:", expected_value, "min_call:", min_call)
+        print("min_bet", min_bet, "ev_bet:", equity * (pot + 2*min_bet) - min_bet, "ev_call:", equity * (pot + 2*min_call) - min_call)
+
+        if equity < pot_odds:  # Check fold
+            if min_call == 0:  # CHECK
+                return 0
+            else:  # fold
+                return None
+        elif min_call == 0 and (equity - pot_odds) * pot < table.big_blind:  # check
+            return table.current_bet
+        elif equity * (pot + table.current_bet * table.active.count(True)) - table.current_bet < min_bet:  # call
+            return table.current_bet
+        else:  # Raise / bet
+            ran = int(table.big_blind * 2 * self.defensive_variation)
+            val = table.current_bet + int(expected_value) + random.randint(-ran, ran)
+
+            if min_bet > val > min_bet * 0.8:
+                return min_bet  # stretch bet to minimum allowed
+            elif val < min_bet:
+                return table.current_bet  # abort bet, just call
+
+            return val
 
 
 class NaivePlayer(Player):
@@ -61,13 +96,16 @@ class NaivePlayer(Player):
         raw = table.evaluator.evaluate([treys.Card.new(x) for x in self.hand], to_eval)
 
         win_percent = 1 - table.evaluator.get_five_card_rank_percentage(raw)
-        bet_size = 1.0 * table.current_bet / (table.pot + table.current_bet)
+        adj_pot = table.get_adjusted_pot()
+        bet_size = 1.0 * table.current_bet / (adj_pot + table.current_bet)
 
         if win_percent > bet_size:  # Should be calling or raising here.
             # With randomness, decide whether to call or raise
             raise_bool = random.uniform(0, win_percent) < (win_percent - bet_size)
             if raise_bool:
-                return random.randint(table.current_bet, int((2 * win_percent * table.pot) + (table.pot / 2))+5)
+                min_bet = max(table.current_bet, table.big_blind)
+                bet = random.randint(min_bet, int((2 * win_percent * adj_pot) + (adj_pot / 2))+5)
+                return bet
             else:
                 return table.current_bet
         else:  # Balance our strategy, also call sometimes with worse hands
@@ -144,6 +182,13 @@ class Table:
         self.hands_per_bb = hands_per_bb
         self.round_counter = 0
         self.aggressor = None
+
+    def get_adjusted_pot(self):
+        pot = self.pot
+        for player in self.players:
+            pot += player.chips_in_front
+
+        return pot
 
     def check_legal_bet(self, bet, stack):
         if bet >= stack:
@@ -311,8 +356,11 @@ def main():
 
     # Make players
     table.players += [NaivePlayer(0, STARTING_STACK)]
-    for i in range(1, NUM_PLAYERS):
+    table.players += [GTOPlayer(1, STARTING_STACK)]
+    for i in range(2, NUM_PLAYERS):
         table.players += [RandomPlayer(i, STARTING_STACK)]
+
+    assert(NUM_PLAYERS == len(table.players))
 
     # Handle scoring / winners
     for _ in range(NUM_ROUNDS):

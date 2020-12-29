@@ -1,3 +1,5 @@
+import random
+
 
 SUITS = ['h', 's', 'd', 'c']
 CARDS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']
@@ -11,7 +13,21 @@ c_lookup = {
 
 
 def make_deck():
+    random.shuffle(DECK)
     return DECK
+
+
+def get_combo_from_hand(hand):
+    (card1, card2) = hand
+    name = f"{card1[0]}{card2[0]}"
+
+    if c_lookup[card1[0]] < c_lookup[card2[0]]:
+        name = f"{card2[0]}{card1[0]}"
+
+    if card1[-1] != card2[-1] and card1[0] != card2[0]:  # off suited
+        name += 'o'
+
+    return name
 
 
 def get_hand_dict_from_combos(combo_data):
@@ -45,3 +61,4 @@ def get_combos_from_hand_dict(hand_data):
 
         combos[name] += [hand_data[(card1, card2)]]
     return combos
+

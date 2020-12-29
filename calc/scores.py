@@ -13,10 +13,10 @@ def build_deck():
             deck.append(card)
     return deck
 
-def combinations(arr, n):
+def comb(arr, n):
     arr = np.asarray(arr)
     t = np.dtype([('', arr.dtype)]*n)
-    result = np.fromiter(itertools.combinations(arr, n), t)
+    result = np.fromiter(itertools.co(arr, n), t)
     return result.view(arr.dtype).reshape(-1, n)
 
 def check_four_of_a_kind(hand,letters,numbers,rnum,rlet):
@@ -148,7 +148,7 @@ def score_hand(hand):
 
     return score
 
-def handvalues(combinations):
+def handvalues(co):
     scores =[] # We iterate over all combinations scoring them
     for i in tqdm(combinations):
         scores += [{"hand": i, "value": score_hand(i)}]
