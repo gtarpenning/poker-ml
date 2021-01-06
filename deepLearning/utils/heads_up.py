@@ -4,6 +4,7 @@ DECK = [c + s for c in CARDS for s in SUITS]
 CARD_DICT = {DECK[i]:i for i in range(len(DECK))}
 
 import random
+import time
 import torch
 import torch.nn as nn
 import treys
@@ -55,3 +56,43 @@ def score_heads_up(p1, p2, board):
     s1 = e.evaluate(player1, b)
     s2 = e.evaluate(player2, b)
     return (int(s1 <= s2), int(s1 >= s2))
+
+def make_staged_games(num_games, device = 'cpu', dtype = torch.float, verbose = False):
+    to = {'device': device, 'dtype':dtype}
+    X = []
+    y = []
+    start_time = time.time()
+    for g in range(num_games//2):
+        start_time = time.time()
+        if verbose and g % verbose == 0:
+            print("Completed {} in {:2f} seconds".format(verbose, time.time()-start_time))
+            start_time = time.time()
+        p1, p2, board = make_heads_up()
+        g1 = torch.stack(
+            [
+                one_hot_cards(p1, **to), 
+                one_hot_cards(board[:3], **to), 
+                one_hot_cards([board[3]], **to),
+                one_hot_cards([board[4]], **to)
+            ]
+        )
+        g2 = torch.stack(
+            [
+                one_hot_cards(p2, **to), 
+                one_hot_cards(board[:3], **to), 
+                one_hot_cards([board[3]], **to),
+                one_hot_cards([board[4]], **to)
+            ]
+        )
+        X.append(g1)
+        X.append(g2)
+        
+        s1, s2 = score_heads_up(p1, p2, board)
+        
+        y.append(torch.tensor(s2, **to)) # if p1 wins append 0 => s2 is 0
+        y.append(torch.tensor(s1, **to)) # if p1 loses append 1 => s1 is 1
+        
+    X = torch.stack(X)
+    y = torch.stack(y)
+    
+    return X, y.to(torch.long)
