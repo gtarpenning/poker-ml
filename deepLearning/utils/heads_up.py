@@ -2,6 +2,7 @@ SUITS = ['h', 's', 'd', 'c']
 CARDS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']
 DECK = [c + s for c in CARDS for s in SUITS]
 CARD_DICT = {DECK[i]:i for i in range(len(DECK))}
+DICT_CARD = {v:k for k,v in CARD_DICT.items()}
 
 import random
 import time
@@ -36,6 +37,21 @@ def make_heads_up():
     """
     deck = make_deck()
     return (deck[:2], deck[2:4], deck[4:9])
+    
+def unwrap_game(game, treys=False):
+    """
+    Game is an encoded game of shape N,4,52
+    """
+    ret_list = []
+    for board in range(game.shape[0]):
+        _, cards = game[board].nonzero(as_tuple=True)
+        cards = [DICT_CARD[i.item()] for i in cards]
+        if treys:
+            cards = [Card.new(c) for c in cards]
+        ret_list.append(cards)
+
+    return ret_list
+
     
 def make_treys(cards):
     """
