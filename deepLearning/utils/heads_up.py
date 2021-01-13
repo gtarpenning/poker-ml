@@ -11,6 +11,7 @@ import torch.nn as nn
 import treys
 from treys import Evaluator
 from treys import Card
+from tqdm.notebook import tqdm
 
 
 def one_hot_cards(cards, card_dict=CARD_DICT, device='cpu', dtype=torch.float):
@@ -78,11 +79,11 @@ def make_staged_games(num_games, device = 'cpu', dtype = torch.float, verbose = 
     X = []
     y = []
     start_time = time.time()
-    for g in range(num_games//2):
+    for g in tqdm(range(num_games//2)):
         start_time = time.time()
-        if verbose and g % verbose == 0:
-            print("Completed {} in {:2f} seconds".format(verbose, time.time()-start_time))
-            start_time = time.time()
+#         if verbose and g % verbose == 0:
+#             print("Completed {} in {:2f} seconds".format(verbose, time.time()-start_time))
+#             start_time = time.time()
         p1, p2, board = make_heads_up()
         g1 = torch.stack(
             [
